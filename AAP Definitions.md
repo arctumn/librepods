@@ -423,36 +423,52 @@ Captured from **iOS 26.5.2 ↔ AirPods Pro 3 (firmware 8B41)** with `idevicebtlo
 during a Fitness workout. See `crossplatform/docs/aap-packet-discovery.md` for the method.
 
 On iOS 26 the sensor streams are **not** started with the `0x17 … 42 0B 08 <type> …`
-frame used by Head Tracking above. Instead the phone sends opcode **`0x44`**, which
-declares the *complete set* of sensors it wants streaming:
+frame used by Head Tracking above. Around every sensor state change the phone sends
+opcode **`0x44`**. Its framing is settled; its payload semantics are **not**.
 
 ```plaintext
 04 00 04 00 44 00 04 00 02 00 03 07
-            ^^^^^ ^^^^^ ^^^^^ ^^^^^
-            op    subcmd count sensor ids
+            ^^^^^ ^^^^^ ^^^^^^^^^^^
+            op    len   payload
 ```
 
 | Field | Offset | Length | Meaning |
 |---|---|---|---|
 | opcode | 4 | 2 | `44 00` |
-| subcommand | 6 | 2 | `04 00` (observed value) |
-| sensor count | 8 | 2 | little-endian count of ids that follow |
-| sensor ids | 10 | *count* | one byte per sensor |
+| length | 6 | 2 | little-endian byte count of the payload that follows |
+| payload | 8 | *length* | see below |
 
-The command is **absolute, not incremental**: sensor `07` was already streaming before
-this packet and kept streaming because it is listed again. Observed response:
+The length field is confirmed by a second variant carrying exactly 14 payload bytes:
+
+```plaintext
+04 00 04 00 44 00 0e 00 03 00 02 01 00 00 23 0c 77 6a 00 00 00 00
+```
+
+**Payload semantics are unresolved.** In the 4-byte form the first three bytes were
+`02 00 03` in every occurrence across both captures, and only the last byte varied —
+`01`, `02`, `06`, `07`. An earlier reading of this as *"count = 2, sensor ids = [3, 7]"*
+**does not survive the second capture**: `02 00 03 07` appears there twice without sensor 3
+starting, and `02 00 03 01` / `02 00 03 06` start no stream at all. Treat the trailing byte
+as an unidentified selector, not a sensor id list.
+
+What *is* reproducible is the one instance at the start of the Fitness workout, where
+`02 00 03 07` was followed by:
 
 - **+10 ms** — `4a 02 08 13` and `4a 02 08 10` acks (protobuf field 9), announcing the
-  data types the new stream will carry: **19 = HEARTRATE**, 16 = raw PPG.
+  data types the stream will carry: **19 = HEARTRATE**, 16 = raw PPG.
 - **+46 ms** — sensor 3 begins streaming.
 
-Observed sensors:
+That is a single observation. It is strong evidence that `0x44` participates in starting the
+heart-rate stream, and weak evidence about how.
+
+Observed sensors (`field 2` of the `0x17` protobuf):
 
 | Sensor id | Data type | Rate | Notes |
 |---|---|---|---|
 | 3 | 16 | ~50 Hz | raw PPG samples |
 | 3 | 19 | 1 Hz | **heart rate** (see below) |
-| 7 | 18 | ~5 Hz | already active before capture; purpose unknown |
+| 7 | 18 | ~5 Hz | **candidate: head tracking / spatial audio** — streamed continuously and exclusively while music was playing in the second capture, and stopped within a second of playback being stopped |
+| 1, 2 | — | bursty | seen only around reconnection and case transitions |
 
 ## Received Heart Rate Data
 
@@ -500,9 +516,14 @@ list, since they mark unlocked readings.
 
 # Case and Charging Transitions
 
-Second capture, same rig (iOS 26.5.2 ↔ AirPods Pro 3, fw 8B41). Flow: worn → removed →
-placed in the open case → case interaction → lid closed → lid reopened → idle.
-176 s, 810 AAP packets.
+Second capture, same rig (iOS 26.5.2 ↔ AirPods Pro 3, fw 8B41). Flow: **worn with music
+playing** → playback stopped → removed from ears → placed in the open case → case
+interaction → lid closed → lid reopened → idle. 176 s, 810 AAP packets.
+
+The music phase was not part of the intended test but turned out to be the most informative
+part of it: sensor 7 streamed continuously at ~5 Hz for the first 52.8 s and stopped within a
+second of playback ending, having never streamed again for the remaining two minutes. That is
+the clearest signal yet as to what sensor 7 is for.
 
 ## Charging status: `0x01` vs `0x05` are sequential, not alternatives
 
