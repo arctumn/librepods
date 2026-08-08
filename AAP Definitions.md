@@ -467,8 +467,27 @@ Observed sensors (`field 2` of the `0x17` protobuf):
 |---|---|---|---|
 | 3 | 16 | ~50 Hz | raw PPG samples |
 | 3 | 19 | 1 Hz | **heart rate** (see below) |
-| 7 | 18 | ~5 Hz | **candidate: head tracking / spatial audio** — streamed continuously and exclusively while music was playing in the second capture, and stopped within a second of playback being stopped |
+| 7 | 18 | ~5 Hz | **tracks the worn state** — see below |
 | 1, 2 | — | bursty | seen only around reconnection and case transitions |
+
+### Sensor 7 follows the worn state, not audio playback
+
+Worth recording as a method note, because the two captures differ in exactly the confounding
+variable and it would otherwise be easy to get this wrong.
+
+| | audio playing | worn | sensor 7 streaming |
+|---|---|---|---|
+| Capture 1 (workout) | no | entire 93 s — zero ear-detection events | **0.0 → 93.0 s**, i.e. throughout |
+| Capture 2 (case) | yes, until ~52 s | until 53.06 s | **0.0 → 52.8 s** |
+
+In capture 2 alone, sensor 7 stopping looks like it tracks playback — the music was stopped
+immediately before the buds were removed, so the two events are 260 ms apart and
+indistinguishable. Capture 1 separates them: **no audio played at any point, yet sensor 7
+streamed for the full 93 s while the buds stayed in the ears.**
+
+So sensor 7 is tied to the buds being worn, not to playback. Its last packet precedes the
+first ear-detection state change by 260 ms, which fits a motion or proximity sensor reacting
+before the in-ear determination is published.
 
 ## Received Heart Rate Data
 
@@ -520,10 +539,9 @@ Second capture, same rig (iOS 26.5.2 ↔ AirPods Pro 3, fw 8B41). Flow: **worn w
 playing** → playback stopped → removed from ears → placed in the open case → case
 interaction → lid closed → lid reopened → idle. 176 s, 810 AAP packets.
 
-The music phase was not part of the intended test but turned out to be the most informative
-part of it: sensor 7 streamed continuously at ~5 Hz for the first 52.8 s and stopped within a
-second of playback ending, having never streamed again for the remaining two minutes. That is
-the clearest signal yet as to what sensor 7 is for.
+The music phase was not part of the intended test, and playback stopping happened to coincide
+with the buds being removed — see the sensor 7 note below for why that nearly produced a wrong
+conclusion.
 
 ## Charging status: `0x01` vs `0x05` are sequential, not alternatives
 
