@@ -623,11 +623,25 @@ So the transition is **not driven by elapsed time** — 240 s hands-off produced
 at all — and a bud can report `0x01` from the instant it is seated. Charging genuinely
 occurred throughout while `0x01` was reported.
 
-**What decides between the two is unresolved.** The most salient difference between the two
-runs is how many buds were in the case: both (→ `0x05`, then `0x01` together) versus one
-(→ `0x01` throughout). That is the obvious candidate but is not established. An earlier guess
-that `0x05` depends on whether the case itself is detected is also refuted: a bud reported
-`0x01` while the case was still sending `255 %` / `disconnected`.
+A second controlled run — **both** buds seated, lid open, untouched for 162 s — also produced
+`0x01` from the instant each bud was seated and **never once reported `0x05`**. That kills the
+number-of-buds explanation.
+
+Across four captures:
+
+| Capture | Battery packets | Components reporting `0x05` |
+|---|---|---|
+| Workout | 1 | 0 |
+| Case — buds seated, **case and lid handled** | 15 | **12** |
+| Battery — one bud, hands-off 240 s | 7 | 0 |
+| Battery — both buds, hands-off 162 s | 10 | 0 |
+
+**Seating buds in the case does not by itself produce `0x05`.** Three hypotheses are now
+refuted: it is not elapsed time (240 s of observation, no change), not the number of buds in
+the case, and not whether the case is detected — a bud reported `0x01` while the case was
+still sending `255 %` / `disconnected`. The only capture that produced `0x05` is also the only
+one in which the case and its lid were physically interacted with, which makes that the
+remaining candidate, untested.
 
 The practical consequence is unchanged and is what `## Battery` already advises — **treat
 `0x01` and `0x05` both as charging.** The value that appears is not predictable from elapsed
