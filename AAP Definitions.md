@@ -417,14 +417,77 @@ Once tracking is active, the AirPods stream sensor packets with the following co
 | Horizontal Acceleration  | 51     | 2              |
 | Vertical Acceleration    | 53     | 2              |
 
-# Sensor Subscription (opcode 0x44)
+# Starting and Stopping Sensor Streams
 
 Captured from **iOS 26.5.2 ↔ AirPods Pro 3 (firmware 8B41)** with `idevicebtlogger`,
-during a Fitness workout. See `crossplatform/docs/aap-packet-discovery.md` for the method.
+across three sessions. See `crossplatform/docs/aap-packet-discovery.md` for the method.
 
-On iOS 26 the sensor streams are **not** started with the `0x17 … 42 0B 08 <type> …`
-frame used by Head Tracking above. Around every sensor state change the phone sends
-opcode **`0x44`**. Its framing is settled; its payload semantics are **not**.
+Sensor streams are started and stopped with the **same `0x17` … `42 0B` frame family as Head
+Tracking above** — not with a different mechanism. The frame carries a stream id and a
+sampling period, and **a period of zero is the stop**:
+
+```plaintext
+04 00 04 00 17 00 00 00 10 00 11 00 08 70 10 02 42 0b 08 53 10 02 1a 05 01 40 42 0f 00
+                              ^^^^^    ^^^^^ ^^^^^       ^^^^^          ^^ ^^^^^^^^^^^
+                              len=17   seq   10 02       stream id      md period µs LE
+```
+
+| Field | Meaning |
+|---|---|
+| length | `11 00` = **17**, little-endian |
+| seq | varint, increments per control frame |
+| stream id | `08 <id>` inside the `42 0B` block |
+| mode | `1`, `2` or `4` — meaning unresolved |
+| period | little-endian u32, **microseconds**; `0` = stop the stream |
+
+Observed stream ids, consistent across all three captures:
+
+| Stream id | Period sent | Rate | Carries |
+|---|---|---|---|
+| `0x53` | `1000000` | 1 Hz | **heart rate** (data type 19) |
+| `0x50` | `20000` | 50 Hz | raw PPG (data type 16) |
+| `0x52` | `200` | — | the worn-state sensor (data type 18) |
+| `0x10`, `0x12` | `10` / `0` | — | seen with mode 4 / mode 2 around reconnection |
+
+The id appears to be the data type with bit `0x40` set: type 19 (`0x13`) → id `0x53`, type 16
+(`0x10`) → id `0x50`, type 18 (`0x12`) → id `0x52`. That also matches the Head Tracking stop
+frame documented above (`08 4E`, i.e. type 14 | `0x40`). Note that bare `0x10` and `0x12` also
+occur, so the bit is not simply part of the id.
+
+## Worked example — a full heart-rate session
+
+From the third capture, one clock, showing that the `0x17` frame is what actually drives the
+stream:
+
+```plaintext
+t=126.78  →  44 00 04 00 02 00 03 07            opcode 0x44 (see below)
+t=126.80  →  17 … 08 53 … period 1000000        start heart rate at 1 Hz
+t=126.96  →  17 … 08 50 … period 20000          start raw PPG at 50 Hz
+t=128.68  ←  first heart-rate frame                        (1.88 s after the start frame)
+   …
+t=209.99  →  17 … 08 50 … period 0              stop raw PPG
+t=241.48  →  17 … 08 53 … period 0              stop heart rate
+t=241.65  ←  last heart-rate frame                         (170 ms after the stop frame)
+```
+
+## Corrections to `crossplatform/windows/daemon/src/aap.rs`
+
+`HR_START` and `HR_STOP` are close but not correct. Against the captured frames:
+
+| | `aap.rs` | captured |
+|---|---|---|
+| length field | `10 00` (16) | **`11 00` (17)** |
+| field after seq | *absent* | **`10 02`** |
+| stream id | `08 13` (19) | **`08 53` (83)** |
+| period (start) | `01 40 42 0F 00` | `01 40 42 0F 00` — **correct**, 1 Hz |
+| period (stop) | `01 00 00 00 00` | `01 00 00 00 00` — **correct** |
+
+So the sampling period was right all along; the length, the `10 02` field and the stream id
+are wrong. `HR_STOP` additionally reuses the start id rather than switching to `0x53`.
+
+## Opcode 0x44
+
+Distinct from the above and **not** the mechanism that starts streams. Framing is settled:
 
 ```plaintext
 04 00 04 00 44 00 04 00 02 00 03 07
@@ -432,34 +495,19 @@ opcode **`0x44`**. Its framing is settled; its payload semantics are **not**.
             op    len   payload
 ```
 
-| Field | Offset | Length | Meaning |
-|---|---|---|---|
-| opcode | 4 | 2 | `44 00` |
-| length | 6 | 2 | little-endian byte count of the payload that follows |
-| payload | 8 | *length* | see below |
-
-The length field is confirmed by a second variant carrying exactly 14 payload bytes:
+The length field is confirmed by a 14-byte variant:
 
 ```plaintext
 04 00 04 00 44 00 0e 00 03 00 02 01 00 00 23 0c 77 6a 00 00 00 00
 ```
 
-**Payload semantics are unresolved.** In the 4-byte form the first three bytes were
-`02 00 03` in every occurrence across both captures, and only the last byte varied —
-`01`, `02`, `06`, `07`. An earlier reading of this as *"count = 2, sensor ids = [3, 7]"*
-**does not survive the second capture**: `02 00 03 07` appears there twice without sensor 3
-starting, and `02 00 03 01` / `02 00 03 06` start no stream at all. Treat the trailing byte
-as an unidentified selector, not a sensor id list.
-
-What *is* reproducible is the one instance at the start of the Fitness workout, where
-`02 00 03 07` was followed by:
-
-- **+10 ms** — `4a 02 08 13` and `4a 02 08 10` acks (protobuf field 9), announcing the
-  data types the stream will carry: **19 = HEARTRATE**, 16 = raw PPG.
-- **+46 ms** — sensor 3 begins streaming.
-
-That is a single observation. It is strong evidence that `0x44` participates in starting the
-heart-rate stream, and weak evidence about how.
+**Payload semantics remain unresolved.** In the 4-byte form the first three bytes were
+`02 00 03` in every occurrence across all three captures and only the trailing byte varied
+(`01`, `02`, `06`, `07`). It is *not* a sensor id list: `02 00 03 07` occurs without any stream
+starting, and `02 00 03 01` / `02 00 03 06` start nothing at all. It does consistently appear
+tens of milliseconds *before* the `0x17` control frames at a session change — 20 ms before in
+the worked example above — so it reads as session or configuration signalling that brackets a
+stream change rather than causing it.
 
 Observed sensors (`field 2` of the `0x17` protobuf):
 
@@ -602,7 +650,7 @@ semantics are mostly unresolved.
 | `0x53` | 6 | Arrays of IEEE-754 float32 values, repeated in blocks — plausibly audio calibration |
 | `0x1D` | 6 | **Device identity** — model, manufacturer, serial, firmware versions and asset bundle ids, all in plaintext |
 | `0x55` | 5 | 4-byte payload, constant across both captures |
-| `0x59` | 4 | Two 8-byte little-endian values; seen immediately before sensor subscription |
+| `0x59` | 4 | Two 8-byte little-endian values; seen immediately before 0x44 |
 | `0x01` `0x02` `0x0D` `0x1B` `0x22` `0x23` `0x24` `0x29` `0x2B` `0x2D` `0x4E` `0x54` | 3 each | Emitted together as one burst during the reconnection handshake |
 | `0x1F` `0x52` | 1 each | Single occurrence during reconnection |
 
