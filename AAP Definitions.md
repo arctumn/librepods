@@ -591,7 +591,7 @@ The music phase was not part of the intended test, and playback stopping happene
 with the buds being removed — see the sensor 7 note below for why that nearly produced a wrong
 conclusion.
 
-## Charging status: `0x01` vs `0x05` are sequential, not alternatives
+## Charging status: what selects `0x01` versus `0x05`
 
 `## Battery` above already documents `0x05` as *charging (in case)* and advises treating it
 and `0x01` alike. This capture supports that advice and adds why it is needed: the two are not
@@ -608,18 +608,30 @@ the time and then stop working.
 | 106.8 | **both buds flip to `0x01` charging**, simultaneously, ~26 s after insertion |
 | 145.9 | both levels have risen by 1 % — charging did occur |
 
-So `0x05` is the state reported the instant a bud is seated in the case, and `0x01` replaces
-it about half a minute later for both buds at once.
+**`0x05` is not a mandatory precursor to `0x01`.** A controlled follow-up refuted the obvious
+reading of the table above. One bud was seated in the case with the lid open while the other
+stayed in an ear as a control, and nothing was touched for 240 s:
 
-**What triggers the flip is not established.** 260 ms before it the phone sent control id
-`0x3B` value `0x01` (undocumented), but that is correlation only. The lid could not be
-located reliably in the trace either: there is no clean link-drop, and the idle gaps
-(14.7 s, 16.2 s, 10.2 s) are equally consistent with sitting idle in the case. A reconnection
-handshake does occur mid-capture (~25 opcodes in 1.5 s, including a full device-info
-exchange), but it cannot be attributed to lid-open versus lid-close from the traffic alone.
+| t (s) | observation |
+|---|---|
+| 94.2 | bud seated → **`0x01` charging immediately**, no `0x05` at any point; case reporting 60 % |
+| 255.6 | cased bud 80 % → 81 %, still `0x01` |
+| 305.5 | 81 % → 82 %, still `0x01` |
+| 334.5 | worn control bud 79 % → 78 %, `not-charging` throughout, as expected |
 
-To settle it: seat **one** bud in the case, lid open, and touch nothing for 90 s. If the status
-flips on its own, it is a function of time or charge state rather than any user action.
+So the transition is **not driven by elapsed time** — 240 s hands-off produced no state change
+at all — and a bud can report `0x01` from the instant it is seated. Charging genuinely
+occurred throughout while `0x01` was reported.
+
+**What decides between the two is unresolved.** The most salient difference between the two
+runs is how many buds were in the case: both (→ `0x05`, then `0x01` together) versus one
+(→ `0x01` throughout). That is the obvious candidate but is not established. An earlier guess
+that `0x05` depends on whether the case itself is detected is also refuted: a bud reported
+`0x01` while the case was still sending `255 %` / `disconnected`.
+
+The practical consequence is unchanged and is what `## Battery` already advises — **treat
+`0x01` and `0x05` both as charging.** The value that appears is not predictable from elapsed
+time or from the case's own reported state.
 
 ## Ear detection: two values beyond the documented three
 
