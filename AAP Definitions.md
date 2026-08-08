@@ -498,6 +498,137 @@ filter and a `state == 2` test agree exactly on this capture. `10 02 81` / `10 8
 variants of the known `20 02 80` / `20 82 80` pair; they should **not** be added to the accept
 list, since they mark unlocked readings.
 
+# Case and Charging Transitions
+
+Second capture, same rig (iOS 26.5.2 ↔ AirPods Pro 3, fw 8B41). Flow: worn → removed →
+placed in the open case → case interaction → lid closed → lid reopened → idle.
+176 s, 810 AAP packets.
+
+## Charging status: `0x01` vs `0x05` are sequential, not alternatives
+
+The battery packet's per-component status byte was the open question in
+`crossplatform/docs/aap-packet-discovery.md`. Both values occur, and they are **distinct
+states in sequence**:
+
+| t (s) | observation |
+|---|---|
+| 13.1 | baseline — both buds `not-charging` (`0x02`), case `disconnected` (`0x04`) |
+| 78.1 | first bud enters case → **`0x05` charging-in-case**, immediately |
+| 79.0 | case starts reporting a real level (one transient `0xFF` frame first) |
+| 80.3 | second bud enters case → **`0x05`** |
+| 106.8 | **both buds flip to `0x01` charging**, simultaneously, ~26 s after insertion |
+| 145.9 | both levels have risen by 1 % — charging did occur |
+
+So `0x05` is the state reported the instant a bud is seated in the case, and `0x01` replaces
+it about half a minute later for both buds at once.
+
+**What triggers the flip is not established.** 260 ms before it the phone sent control id
+`0x3B` value `0x01` (undocumented), but that is correlation only. The lid could not be
+located reliably in the trace either: there is no clean link-drop, and the idle gaps
+(14.7 s, 16.2 s, 10.2 s) are equally consistent with sitting idle in the case. A reconnection
+handshake does occur mid-capture (~25 opcodes in 1.5 s, including a full device-info
+exchange), but it cannot be attributed to lid-open versus lid-close from the traffic alone.
+
+To settle it: seat **one** bud in the case, lid open, and touch nothing for 90 s. If the status
+flips on its own, it is a function of time or charge state rather than any user action.
+
+## Ear detection: the documented enum is incomplete
+
+`## Ear Detection` above lists `00` = in-ear, `02` = in-case, `03` = disconnected. Removing the
+buds from the ears produced this sequence of `(primary, secondary)` pairs:
+
+```plaintext
+00 01  →  01 01  →  01 04  →  04 04  →  04 01  →  01 01  →  02 01  →  01 02  →  02 02
+```
+
+`01` and `04` are both undocumented and both are clearly transitional — they appear only while
+a bud is in motion between states, never at rest. `02 02` (both in case) and `02 03` (one bud
+dropped off) were the resting values observed.
+
+# Undocumented Opcodes Observed
+
+Everything below appeared in the two captures and is **not** described elsewhere in this
+document. Listed so the next person does not have to rediscover that they exist; payload
+semantics are mostly unresolved.
+
+| Opcode | Count | What can be said |
+|---|---|---|
+| `0x4F` | 186 | Accessory asset/firmware protocol — request/response pairs carrying `HSML`, `VERS`, `FTAB` tags, version tables and per-language asset manifests |
+| `0x44` | 20 | **Sensor subscription** — documented above |
+| `0x2E` | 14 | Carries Bluetooth addresses of the linked devices; emitted around reconnection |
+| `0x0C` | 14 | Carries a Bluetooth address plus two status bytes |
+| `0x0E` | 11 | Carries a Bluetooth address plus one status byte |
+| `0x4C` | 8 | Short status records, emitted in pairs on reconnect |
+| `0x08` | 8 | 4-byte payload, emitted alongside battery updates |
+| `0x53` | 6 | Arrays of IEEE-754 float32 values, repeated in blocks — plausibly audio calibration |
+| `0x1D` | 6 | **Device identity** — model, manufacturer, serial, firmware versions and asset bundle ids, all in plaintext |
+| `0x55` | 5 | 4-byte payload, constant across both captures |
+| `0x59` | 4 | Two 8-byte little-endian values; seen immediately before sensor subscription |
+| `0x01` `0x02` `0x0D` `0x1B` `0x22` `0x23` `0x24` `0x29` `0x2B` `0x2D` `0x4E` `0x54` | 3 each | Emitted together as one burst during the reconnection handshake |
+| `0x1F` `0x52` | 1 each | Single occurrence during reconnection |
+
+> **Note for anyone sharing captures:** `0x1D` transmits the device serial number and the
+> user-assigned device name in plaintext, and `0x2E` / `0x0C` / `0x0E` carry Bluetooth
+> addresses. A raw `.pklg` is personally identifying even with MAC addresses stripped from
+> the HCI layer. Publish derived protocol facts, not capture files.
+
+## Payload layouts (identifying fields redacted)
+
+**`0x1D` — device identity.** A 7-byte header followed by a run of NUL-terminated strings.
+Field order was stable across all six occurrences:
+
+```plaintext
+1d 00 02 fc 00 08 00
+  "AirPods Pro ****"        user-assigned device name          [REDACTED]
+  "A3064"                   model number
+  "Apple Inc."              manufacturer
+  "**********"              device serial                      [REDACTED]
+  "81.26750000750000….6877" firmware version string
+  "81.26750000750000….6877" firmware version string (repeated)
+  "1.0.0"
+  "com.apple.accessory.updater.app.multiasset.71"   asset bundle id
+  "******************"      per-unit module id                 [REDACTED]
+  "******************"      per-unit module id                 [REDACTED]
+  "*******"                 part/build number                  [REDACTED]
+  <32 bytes binary>         opaque, likely a key or digest     [REDACTED]
+  "1770731447"              unix timestamp
+  "1770731447"              unix timestamp (repeated)
+```
+
+A second variant carries `02 f1 00 04 00` in the header and the bundle id
+`com.apple.accessory.updater.app.71`; all other fields match.
+
+**`0x2E` — linked-device addresses.** Two 6-byte Bluetooth addresses:
+
+```plaintext
+2e 00 01 00 02 XX XX XX XX XX XX 02 07 YY YY YY YY YY YY 00 01
+              ^^^^^^^^^^^^^^^^^^       ^^^^^^^^^^^^^^^^^^
+              addr A [REDACTED]        addr B [REDACTED]
+```
+
+**`0x0C` / `0x0E` — per-device status.** One Bluetooth address plus trailing status bytes:
+
+```plaintext
+0c 00 XX XX XX XX XX XX 00 02      0e 00 XX XX XX XX XX XX 00
+      ^^^^^^^^^^^^^^^^^^                 ^^^^^^^^^^^^^^^^^^
+      [REDACTED]                         [REDACTED]
+```
+
+**`0x59` — two 64-bit values.** No identifying content; seen immediately before `0x44`:
+
+```plaintext
+59 00 11 00 01 6f 0c 77 6a 00 00 00 00 50 09 78 6a 00 00 00 00
+```
+
+## Undocumented control command ids (opcode `0x09`)
+
+| Id | Direction | Value(s) seen | Notes |
+|---|---|---|---|
+| `0x0B` | phone → buds | `0x3C`, `0x96` (60, 150) | sent while worn, before any workout or case interaction |
+| `0x38` | buds → phone | `0x52` | emitted twice, once while worn and once after entering the case |
+| `0x3B` | phone → buds | `0x01` | 260 ms before the `0x05` → `0x01` charging flip |
+| `0x1A` `0x32` `0x3D` | phone → buds | `0x0E`, `0x01`, `0x01` | always sent as a trio during the reconnection handshake |
+
 # LICENSE
 
 LibrePods - AirPods liberated from Apple’s ecosystem
