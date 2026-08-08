@@ -593,9 +593,11 @@ conclusion.
 
 ## Charging status: `0x01` vs `0x05` are sequential, not alternatives
 
-The battery packet's per-component status byte was the open question in
-`crossplatform/docs/aap-packet-discovery.md`. Both values occur, and they are **distinct
-states in sequence**:
+`## Battery` above already documents `0x05` as *charging (in case)* and advises treating it
+and `0x01` alike. This capture supports that advice and adds why it is needed: the two are not
+alternative encodings chosen by firmware or model, they are **consecutive states of the same
+charging session**, so an implementation that handles only one of them will work for part of
+the time and then stop working.
 
 | t (s) | observation |
 |---|---|
@@ -619,40 +621,51 @@ exchange), but it cannot be attributed to lid-open versus lid-close from the tra
 To settle it: seat **one** bud in the case, lid open, and touch nothing for 90 s. If the status
 flips on its own, it is a function of time or charge state rather than any user action.
 
-## Ear detection: the documented enum is incomplete
+## Ear detection: two values beyond the documented three
 
-`## Ear Detection` above lists `00` = in-ear, `02` = in-case, `03` = disconnected. Removing the
-buds from the ears produced this sequence of `(primary, secondary)` pairs:
+`## Ear Detection` above lists `00` in-ear, `01` out-of-ear and `02` in-case. Removing the buds
+and casing them produced this sequence of `(primary, secondary)` pairs:
 
 ```plaintext
 00 01  →  01 01  →  01 04  →  04 04  →  04 01  →  01 01  →  02 01  →  01 02  →  02 02
 ```
 
-`01` and `04` are both undocumented and both are clearly transitional — they appear only while
-a bud is in motion between states, never at rest. `02 02` (both in case) and `02 03` (one bud
-dropped off) were the resting values observed.
+and later, with one bud powered down in the closed case, `02 03`.
+
+So **`03` and `04` are the two values not in that table**. `04` appears only while a bud is in
+motion between resting states and never at rest, so it reads as a transitional value alongside
+the documented `01`. `03` was seen at rest, on the bud that had dropped off the link — it
+behaves as *disconnected* rather than as a position.
 
 # Undocumented Opcodes Observed
 
-Everything below appeared in the two captures and is **not** described elsewhere in this
-document. Listed so the next person does not have to rediscover that they exist; payload
-semantics are mostly unresolved.
+Everything below appeared in the captures and is **not** described elsewhere in this document.
+Listed so the next person does not have to rediscover that they exist; payload semantics are
+mostly unresolved.
 
 | Opcode | Count | What can be said |
 |---|---|---|
 | `0x4F` | 186 | Accessory asset/firmware protocol — request/response pairs carrying `HSML`, `VERS`, `FTAB` tags, version tables and per-language asset manifests |
-| `0x44` | 20 | **Sensor subscription** — documented above |
+| `0x44` | 20 | Brackets stream changes — see above |
 | `0x2E` | 14 | Carries Bluetooth addresses of the linked devices; emitted around reconnection |
 | `0x0C` | 14 | Carries a Bluetooth address plus two status bytes |
 | `0x0E` | 11 | Carries a Bluetooth address plus one status byte |
 | `0x4C` | 8 | Short status records, emitted in pairs on reconnect |
 | `0x08` | 8 | 4-byte payload, emitted alongside battery updates |
-| `0x53` | 6 | Arrays of IEEE-754 float32 values, repeated in blocks — plausibly audio calibration |
-| `0x1D` | 6 | **Device identity** — model, manufacturer, serial, firmware versions and asset bundle ids, all in plaintext |
-| `0x55` | 5 | 4-byte payload, constant across both captures |
-| `0x59` | 4 | Two 8-byte little-endian values; seen immediately before 0x44 |
+| `0x55` | 5 | 4-byte payload, constant across captures |
+| `0x59` | 4 | Two 8-byte little-endian values; seen immediately before `0x44` |
 | `0x01` `0x02` `0x0D` `0x1B` `0x22` `0x23` `0x24` `0x29` `0x2B` `0x2D` `0x4E` `0x54` | 3 each | Emitted together as one burst during the reconnection handshake |
 | `0x1F` `0x52` | 1 each | Single occurrence during reconnection |
+
+Two opcodes that showed up in the captures are **already documented above** and are noted here
+only because the observations corroborate the existing entries:
+
+- **`0x1D`** — `## Metadata`. Field order matched the documented list exactly across six
+  occurrences. A second variant carries `com.apple.accessory.updater.app.multiasset.71` as the
+  app identifier where the documented example has `…updater.app.71`.
+- **`0x53`** — `## Headphone Accomodation`. The payload is the documented
+  `84 00 02 02 [Phone][Media]` followed by eight EQ float32 values, repeated three times, which
+  matches the "duplicated thrice for some reason" note.
 
 > **Note for anyone sharing captures:** `0x1D` transmits the device serial number and the
 > user-assigned device name in plaintext, and `0x2E` / `0x0C` / `0x0E` carry Bluetooth
