@@ -571,17 +571,24 @@ fn hr_retry_campaign(ctx: &Ctx) -> HrOutcome {
             let _ = drv.send(pkt);
             thread::sleep(Duration::from_millis(delay));
         }
-        // Start the heart-rate stream, then raw PPG ~160 ms later, exactly as iOS
-        // does. NOTE: on Windows this streams raw PPG (type 16) but the AirPods do
-        // not emit the computed heart rate (type 19) — replicating iOS's 0x44 /
-        // 0x59 / 0x0B pre-stream context did not change that, so the trigger is
-        // believed to live in the session setup none of the captures recorded.
-        // See crossplatform/docs/aap-packet-discovery.md.
+        // HRM_STATE (control id 0x30), then the start frame — the order the Android
+        // implementation uses, which is the only one known to actually produce
+        // heart-rate samples (upstream PR #702, tested on AirPods Pro 3).
+        //
+        // This command appears zero times in four iOS captures. That is not a
+        // reason to drop it: iOS is a reference for the *wire format*, Android is
+        // the reference for a *working client*. An earlier revision removed it on
+        // the strength of its absence from iOS, which was the wrong inference.
+        let _ = drv.send(&aap::HR_ENABLE);
+        thread::sleep(Duration::from_millis(HR_START_COMMAND_DELAY_MS));
         let _ = drv.send(&aap::sensor_stream(
             next_hr_seq(),
             aap::STREAM_HEART_RATE,
             aap::PERIOD_HEART_RATE_US,
         ));
+        // Raw PPG alongside it, as iOS does ~160 ms later. Android does not send
+        // this at all, so it is plausibly unnecessary; it is kept because the iOS
+        // capture shows the two together and it is harmless if ignored.
         thread::sleep(Duration::from_millis(HR_PPG_COMMAND_DELAY_MS));
         let _ = drv.send(&aap::sensor_stream(
             next_hr_seq(),

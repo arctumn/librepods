@@ -48,12 +48,14 @@ pub const HR_CONNECT_SERVICE_4: [u8; 16] = [
 /// AACP 1.3 init, service 4 — CAPABILITIES (raw `sendPacket`).
 pub const HR_CAPABILITIES_SERVICE_4: [u8; 7] = [0x04, 0x00, 0x04, 0x00, 0x01, 0x00, 0x00];
 
-/// HRM_STATE control command (id 0x30), value 0x01 = on.
+/// HRM_STATE control command (id 0x30), value 0x01 = on. Sent immediately before
+/// the heart-rate start frame.
 ///
-/// **Not observed on iOS.** Control id 0x30 appears zero times across four
-/// captures of iOS 26.5.2 ↔ AirPods Pro 3, including two full workout sessions.
-/// Kept only in case older firmware needs it; `sensor_stream` below is what
-/// actually drives the stream.
+/// Absent from iOS — control id 0x30 appears zero times across four captures of
+/// iOS 26.5.2 ↔ AirPods Pro 3, including two full workout sessions. **Send it
+/// anyway.** The Android implementation (upstream PR #702, the only client known
+/// to actually produce heart-rate samples) sends it, and iOS is a reference for
+/// the wire format rather than for what a third-party client must do.
 pub const HR_ENABLE: [u8; 11] = [0x04, 0x00, 0x04, 0x00, 0x09, 0x00, 0x30, 0x01, 0x00, 0x00, 0x00];
 
 // ---- Sensor stream control ----
