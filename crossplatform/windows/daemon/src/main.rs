@@ -11,6 +11,7 @@ mod aap;
 mod bt;
 mod driver;
 mod eld;
+mod hearing;
 mod hr;
 mod le;
 mod media;
@@ -745,6 +746,20 @@ fn apply_command(ctx: &Ctx, cmd: Command) {
             ctx.sync_volume();
         }
         Command::SetHeartRate { on } => set_heart_rate(ctx, on),
+        Command::SetHearingAid { on, amplification, balance, conversation_boost } => {
+            // Runs on its own thread — hearing::apply has ~1.3 s of enable settle
+            // sleeps + ATT round-trips and must not block the command pump.
+            if let Some(drv) = ctx.driver_cell.lock().unwrap().clone() {
+                let ctx2 = ctx.clone();
+                thread::spawn(move || match hearing::apply(&drv, on, amplification, balance, conversation_boost) {
+                    Ok(s) => {
+                        log(&s);
+                        ctx2.overlay(if on { "Hearing aid on" } else { "Hearing aid off" });
+                    }
+                    Err(e) => log(&format!("hearing aid FAILED: {e}")),
+                });
+            }
+        }
         Command::Connect => {
             // The user accepted the prompt — let the session start, and ask the OS
             // to (re)connect the audio in case the device was BT-disconnected.
@@ -790,62 +805,6 @@ fn apply_command(ctx: &Ctx, cmd: Command) {
 
 /// The AAP session: keep the link up, decode the mic, track battery/ANC/ear
 /// detection, and broadcast state + overlay events. (Ported from the tray.)
-/// One-shot probe of the ATT (PSM 0x001F) hearing-aid channel once it opens:
-/// enable notifications on the CCCD (handle 0x2B) and read the settings
-/// characteristic (handle 0x2A). Logs the raw responses so we can confirm the ATT
-/// read/write path works end-to-end before wiring the full audiogram flow.
-fn att_probe(drv: &driver::Driver) {
-    let hex = |d: &[u8]| d.iter().map(|b| format!("{b:02x}")).collect::<Vec<_>>().join(" ");
-    // Wake the buds' hearing-aid ATT server first: enable hearing-assist over the
-    // AAP channel (0x2C [01 01] + 0x33 [01]). The ATT (handle 0x2A) server appears
-    // dormant until this is on, so a bare read/write times out.
-    let _ = drv.send(&[0x04, 0x00, 0x04, 0x00, 0x09, 0x00, 0x2C, 0x01, 0x01, 0x00, 0x00]);
-    std::thread::sleep(Duration::from_millis(400));
-    let _ = drv.send(&[0x04, 0x00, 0x04, 0x00, 0x09, 0x00, 0x33, 0x01, 0x00, 0x00, 0x00]);
-    std::thread::sleep(Duration::from_millis(900));
-    // Enable notifications: ATT Write Request (0x12) to CCCD handle 0x2B = 01 00.
-    let _ = drv.att_send(&[0x12, 0x2B, 0x00, 0x01, 0x00]);
-    let mut buf = [0u8; 512];
-    match drv.att_recv(3000, &mut buf) {
-        Ok(n) if n > 0 => log(&format!("ATT notif-enable resp [{n}]: {}", hex(&buf[..n]))),
-        Ok(_) => log("ATT notif-enable: no response"),
-        Err(e) => log(&format!("ATT notif-enable recv err: {e}")),
-    }
-    // Read the hearing-aid settings characteristic: ATT Read Request (0x0A) handle 0x2A.
-    let _ = drv.att_send(&[0x0A, 0x2A, 0x00]);
-    match drv.att_recv(3000, &mut buf) {
-        Ok(n) if n > 0 => log(&format!("ATT read 0x2A resp [{n}]: {}", hex(&buf[..n]))),
-        Ok(_) => log("ATT read 0x2A: no response"),
-        Err(e) => log(&format!("ATT read 0x2A recv err: {e}")),
-    }
-
-    // GATT DISCOVERY: enumerate every handle->UUID (ATT Find Information, 0x04) so we
-    // can spot a Heart Rate service (0x180D) / Heart Rate Measurement char (0x2A37)
-    // or anything else the buds expose over this GATT that the AAP path never did.
-    // Full handle->UUID map: iterate Find Information from 0x0001 upward.
-    let mut start: u16 = 0x0001;
-    for _ in 0..24 {
-        let _ = drv.att_send(&[0x04, (start & 0xff) as u8, (start >> 8) as u8, 0xff, 0xff]);
-        let n = match drv.att_recv(1500, &mut buf) { Ok(n) => n, Err(_) => { break; } };
-        if n < 4 || buf[0] != 0x05 { log(&format!("ATT findinfo@0x{start:04x} end [{n}]: {}", hex(&buf[..n.max(1).min(n)]))); break; }
-        log(&format!("ATT map@0x{start:04x} [{n}]: {}", hex(&buf[..n])));
-        let step = if buf[1] == 1 { 4usize } else { 18usize };
-        let mut last = start;
-        let mut i = 2usize;
-        while i + step <= n { last = u16::from_le_bytes([buf[i], buf[i + 1]]); i += step; }
-        if last >= 0xffff || last < start { break; }
-        start = last + 1;
-    }
-    // Peek at Service 1 (handles 0x0003..0x0011): read each value.
-    for h in 0x0003u16..=0x0011 {
-        let _ = drv.att_send(&[0x0A, (h & 0xff) as u8, (h >> 8) as u8]);
-        if let Ok(n) = drv.att_recv(1200, &mut buf) {
-            if n > 0 { log(&format!("ATT read 0x{h:04x} [{n}]: {}", hex(&buf[..n]))); }
-        }
-    }
-    log("ATT discovery done");
-}
-
 fn run_receiver(ctx: Ctx) {
     let mac = ctx.mac;
     log("run_receiver: entered");
@@ -960,14 +919,11 @@ fn run_receiver(ctx: Ctx) {
                     if d != last_att {
                         let was_open = last_att.4;
                         last_att = d;
+                        let _ = was_open;
                         log(&format!(
                             "ATT: register=0x{:08X} registered={} indications={} accept=0x{:08X} channel_open={}",
                             d.0 as u32, d.1, d.2, d.3 as u32, d.4
                         ));
-                        // First time the ATT channel comes up: probe it end-to-end.
-                        if d.4 == 1 && was_open == 0 {
-                            att_probe(&driver);
-                        }
                     }
                 }
             }

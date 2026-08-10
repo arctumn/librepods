@@ -26,6 +26,7 @@ public sealed partial class DevicePage : UserControl
             FeaturesCard.Client = value;
             MicCard.Client = value;
             HeartRateCard.Client = value;
+            HearingAidCard.Client = value;
         }
     }
 

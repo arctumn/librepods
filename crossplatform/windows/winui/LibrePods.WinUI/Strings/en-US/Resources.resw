@@ -117,6 +117,15 @@
   <data name="MicAutoSwitch.Header" xml:space="preserve"><value>Auto-enable on recording</value></data>
   <data name="MicEnableBtn.Content" xml:space="preserve"><value>Enable hi-res mic now</value></data>
 
+  <!-- ===== HearingAidCard ===== -->
+  <data name="HearingAidTitle.Text" xml:space="preserve"><value>Hearing assistance</value></data>
+  <data name="HearingAidSubtitle.Text" xml:space="preserve"><value>Amplify the world around you through your AirPods (Pro 3).</value></data>
+  <data name="HearingAidWarning.Title" xml:space="preserve"><value>Experimental</value></data>
+  <data name="HearingAidWarning.Message" xml:space="preserve"><value>Amplification without a fitted audiogram may cause feedback — keep it at a comfortable level.</value></data>
+  <data name="HearingAidSwitch.Header" xml:space="preserve"><value>Hearing aid</value></data>
+  <data name="HearingAidAmp.Header" xml:space="preserve"><value>Amplification</value></data>
+  <data name="HearingAidBalance.Header" xml:space="preserve"><value>Balance (left / right)</value></data>
+  <data name="HearingAidConvBoost.Header" xml:space="preserve"><value>Conversation boost</value></data>
   <!-- ===== HeartRateCard ===== -->
   <data name="HeartRateTitle.Text" xml:space="preserve"><value>Heart Rate</value></data>
   <data name="HeartRateSubtitle.Text" xml:space="preserve"><value>AirPods Pro 3 only — experimental. Drains battery.</value></data>

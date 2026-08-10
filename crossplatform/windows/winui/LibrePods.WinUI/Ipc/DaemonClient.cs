@@ -64,6 +64,8 @@ public sealed class DaemonClient : IDisposable
     public void SetMicMode(bool auto, bool manual) => Send(new SetMicModeCmd { Auto = auto, Manual = manual });
     public void SetFeature(byte feature, bool on) => Send(new SetFeatureCmd { Feature = feature, On = on });
     public void SetControl(byte id, byte value) => Send(new SetControlCmd { Id = id, Value = value });
+    public void SetHearingAid(bool on, float amplification, float balance, bool conversationBoost) =>
+        Send(new SetHearingAidCmd { On = on, Amplification = amplification, Balance = balance, ConversationBoost = conversationBoost });
     public void StepVolume(int delta) => Send(new StepVolumeCmd { Delta = delta });
     public void SetVolume(byte percent) => Send(new SetVolumeCmd { Percent = percent });
     public void ToggleMute() => Send(new ToggleMuteCmd());

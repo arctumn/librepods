@@ -110,6 +110,16 @@ pub enum Command {
     /// default because it drains battery). On sends the RTBuddy enable sequence;
     /// off sends the stop frame and clears `heart_rate`.
     SetHeartRate { on: bool },
+    /// AirPods Pro 3 hearing assistance (accessibility amplification). On enables
+    /// hearing-assist over AAP (0x2C/0x33) and writes the amplification settings to
+    /// the ATT/GATT (PSM 0x001F, handle 0x2A); off disables it. `amplification`
+    /// 0.0..=1.0 overall gain, `balance` -1.0(L)..=1.0(R), plus conversation boost.
+    SetHearingAid {
+        on: bool,
+        amplification: f32,
+        balance: f32,
+        conversation_boost: bool,
+    },
     /// Start the AAP session (the user accepted the "connect?" prompt).
     Connect,
     /// Release the AAP control session (the "Disconnect" button). Stops

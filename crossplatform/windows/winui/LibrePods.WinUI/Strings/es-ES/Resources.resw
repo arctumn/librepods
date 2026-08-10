@@ -108,6 +108,15 @@
   <data name="MicAutoSwitch.Header" xml:space="preserve"><value>Activar automáticamente al grabar</value></data>
   <data name="MicEnableBtn.Content" xml:space="preserve"><value>Activar micrófono HD ahora</value></data>
 
+  <!-- ===== HearingAidCard ===== -->
+  <data name="HearingAidTitle.Text" xml:space="preserve"><value>Asistencia auditiva</value></data>
+  <data name="HearingAidSubtitle.Text" xml:space="preserve"><value>Amplifica el sonido a tu alrededor a través de los AirPods (Pro 3).</value></data>
+  <data name="HearingAidWarning.Title" xml:space="preserve"><value>Experimental</value></data>
+  <data name="HearingAidWarning.Message" xml:space="preserve"><value>La amplificación sin un audiograma adecuado puede causar acoples — mantenla a un nivel cómodo.</value></data>
+  <data name="HearingAidSwitch.Header" xml:space="preserve"><value>Audífono</value></data>
+  <data name="HearingAidAmp.Header" xml:space="preserve"><value>Amplificación</value></data>
+  <data name="HearingAidBalance.Header" xml:space="preserve"><value>Balance (izquierda / derecha)</value></data>
+  <data name="HearingAidConvBoost.Header" xml:space="preserve"><value>Refuerzo de conversación</value></data>
   <!-- ===== HeartRateCard ===== -->
   <data name="HeartRateTitle.Text" xml:space="preserve"><value>Frecuencia cardíaca</value></data>
   <data name="HeartRateSubtitle.Text" xml:space="preserve"><value>Solo AirPods Pro 3 — experimental. Consume batería.</value></data>

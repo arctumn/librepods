@@ -128,6 +128,15 @@ public sealed class SetHeartRateCmd
     [JsonPropertyName("on")] public bool On { get; init; }
 }
 
+public sealed class SetHearingAidCmd
+{
+    [JsonPropertyName("cmd")] public string Cmd => "set_hearing_aid";
+    [JsonPropertyName("on")] public bool On { get; init; }
+    [JsonPropertyName("amplification")] public float Amplification { get; init; }
+    [JsonPropertyName("balance")] public float Balance { get; init; }
+    [JsonPropertyName("conversation_boost")] public bool ConversationBoost { get; init; }
+}
+
 public sealed class ConnectCmd
 {
     [JsonPropertyName("cmd")] public string Cmd => "connect";
