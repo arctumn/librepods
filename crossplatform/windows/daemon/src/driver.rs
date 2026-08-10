@@ -32,6 +32,8 @@ const IOCTL_LP_CONNECT: u32 = 0x8000_2000;
 const IOCTL_LP_SEND: u32 = 0x8000_2008;
 const IOCTL_LP_RECEIVE: u32 = 0x8000_200C;
 const IOCTL_LP_GET_STATUS: u32 = 0x8000_2010;
+const IOCTL_LP_ATT_SEND: u32 = 0x8000_2014;
+const IOCTL_LP_ATT_RECEIVE: u32 = 0x8000_2018;
 
 struct DriverHandle(HANDLE);
 unsafe impl Send for DriverHandle {}
@@ -98,12 +100,40 @@ impl Driver {
         Ok(ioctl(self.handle.0, IOCTL_LP_RECEIVE, &to, buf)? as usize)
     }
 
+    /// Send a raw ATT PDU over the ATT (PSM 0x001F) hearing-aid channel.
+    pub fn att_send(&self, data: &[u8]) -> io::Result<()> {
+        ioctl(self.handle.0, IOCTL_LP_ATT_SEND, data, &mut [])?;
+        Ok(())
+    }
+
+    /// Receive a raw ATT PDU from the ATT channel (blocking up to timeout_ms).
+    pub fn att_recv(&self, timeout_ms: u32, buf: &mut [u8]) -> io::Result<usize> {
+        let to = timeout_ms.to_le_bytes();
+        Ok(ioctl(self.handle.0, IOCTL_LP_ATT_RECEIVE, &to, buf)? as usize)
+    }
+
     /// Driver connection state (2 = connected). Reads a state variable only —
     /// no L2CAP I/O, so it never disturbs the audio link.
     pub fn status(&self) -> io::Result<u32> {
-        let mut out = [0u8; 12];
+        let mut out = [0u8; 32];
         ioctl(self.handle.0, IOCTL_LP_GET_STATUS, &[], &mut out)?;
         Ok(u32::from_le_bytes([out[0], out[1], out[2], out[3]]))
+    }
+
+    /// ATT (PSM 0x001F) hearing-aid server diagnostics from the driver:
+    /// (register_ntstatus, server_registered, connect_indications, accept_ntstatus,
+    /// channel_open). Lets us see the hearing-aid channel progress in the daemon log
+    /// without a kernel debugger.
+    pub fn att_diag(&self) -> io::Result<(i32, u32, u32, i32, u32)> {
+        let mut out = [0u8; 32];
+        ioctl(self.handle.0, IOCTL_LP_GET_STATUS, &[], &mut out)?;
+        Ok((
+            i32::from_le_bytes([out[28], out[29], out[30], out[31]]), // register status
+            u32::from_le_bytes([out[12], out[13], out[14], out[15]]), // registered 0/1
+            u32::from_le_bytes([out[16], out[17], out[18], out[19]]), // indications
+            i32::from_le_bytes([out[20], out[21], out[22], out[23]]), // accept status
+            u32::from_le_bytes([out[24], out[25], out[26], out[27]]), // channel open
+        ))
     }
 }
 

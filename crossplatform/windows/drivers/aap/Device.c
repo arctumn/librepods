@@ -46,6 +46,11 @@ LpEvtDevicePrepareHardware(
 
     ctx->HasBthInterface = TRUE;
     KdPrint(("LibrePodsAAP: acquired BTH profile interface\n"));
+
+    // NB: the ATT (PSM 0x001F) server is registered later, from LpConnect, once we
+    // know the AirPods' address (registering with BtAddress=0 here returned
+    // STATUS_INVALID_PARAMETER 0xC000000D).
+
     return STATUS_SUCCESS;
 }
 
@@ -61,6 +66,11 @@ LpEvtDeviceReleaseHardware(
     if (ctx->State != LpDisconnected) {
         LpDisconnect(ctx);
     }
+
+    // Close the accepted ATT channel, then unregister the server, before dropping
+    // the interface (both use it).
+    LpCloseAttChannel(ctx);
+    LpUnregisterAttServer(ctx);
 
     // Release the Bluetooth profile driver interface we took in
     // PrepareHardware. WdfFdoQueryForInterface increments the interface's

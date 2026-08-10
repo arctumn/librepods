@@ -114,10 +114,50 @@ LpEvtIoDeviceControl(
         status = WdfRequestRetrieveOutputBuffer(Request, sizeof(LP_STATUS_OUTPUT), &outBuf, &sz);
         if (!NT_SUCCESS(status)) break;
 
-        out                   = (PLP_STATUS_OUTPUT)outBuf;
-        out->State            = (ULONG)ctx->State;
-        out->ConnectedAddress = ctx->RemoteAddress;
-        information           = sizeof(LP_STATUS_OUTPUT);
+        out                      = (PLP_STATUS_OUTPUT)outBuf;
+        out->State               = (ULONG)ctx->State;
+        out->ConnectedAddress    = ctx->RemoteAddress;
+        out->AttServerRegistered = ctx->AttServerRegistered ? 1u : 0u;
+        out->AttIndicationCount  = ctx->AttIndicationCount;
+        out->AttAcceptStatus     = ctx->AttAcceptStatus;
+        out->AttChannelOpen      = ctx->AttConnected ? 1u : 0u;
+        out->AttRegisterStatus   = ctx->AttRegisterStatus;
+        information              = sizeof(LP_STATUS_OUTPUT);
+        break;
+    }
+
+    case IOCTL_LP_ATT_SEND: {
+        if (InputBufferLength == 0) {
+            status = STATUS_INVALID_PARAMETER;
+            break;
+        }
+        status = WdfRequestRetrieveInputBuffer(Request, 1, &inBuf, &sz);
+        if (!NT_SUCCESS(status)) break;
+        status = LpAttSend(ctx, inBuf, (ULONG)sz);
+        break;
+    }
+
+    case IOCTL_LP_ATT_RECEIVE: {
+        ULONG timeoutMs = 0;
+        ULONG bytesRead = 0;
+
+        if (InputBufferLength >= sizeof(LP_RECEIVE_INPUT)) {
+            status = WdfRequestRetrieveInputBuffer(Request, sizeof(LP_RECEIVE_INPUT), &inBuf, &sz);
+            if (NT_SUCCESS(status)) {
+                timeoutMs = ((PLP_RECEIVE_INPUT)inBuf)->TimeoutMs;
+            }
+        }
+        if (OutputBufferLength == 0) {
+            status = STATUS_BUFFER_TOO_SMALL;
+            break;
+        }
+        status = WdfRequestRetrieveOutputBuffer(Request, 1, &outBuf, &sz);
+        if (!NT_SUCCESS(status)) break;
+
+        status = LpAttReceive(ctx, outBuf, (ULONG)sz, &bytesRead, timeoutMs);
+        if (NT_SUCCESS(status)) {
+            information = bytesRead;
+        }
         break;
     }
 

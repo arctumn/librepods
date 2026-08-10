@@ -83,12 +83,29 @@ LpEvtDeviceAdd(
     ctx = DeviceGetContext(device);
     RtlZeroMemory(ctx, sizeof(*ctx));
     ctx->State           = LpDisconnected;
+    ctx->AttAcceptStatus   = STATUS_PENDING; // 0x00000103 = accept not yet attempted
+    ctx->AttRegisterStatus = STATUS_PENDING; // 0x00000103 = register not yet attempted
     ctx->WdmDeviceObject = WdfDeviceWdmGetDeviceObject(device);
 
     status = WdfSpinLockCreate(WDF_NO_OBJECT_ATTRIBUTES, &ctx->Lock);
     if (!NT_SUCCESS(status)) {
         KdPrint(("LibrePodsAAP: WdfSpinLockCreate failed 0x%08X\n", status));
         return status;
+    }
+
+    // Work item that accepts the AirPods' inbound ATT (PSM 0x001F) connection at
+    // PASSIVE_LEVEL (the connect indication may run at DISPATCH_LEVEL).
+    {
+        WDF_WORKITEM_CONFIG   wiConfig;
+        WDF_OBJECT_ATTRIBUTES wiAttrs;
+        WDF_WORKITEM_CONFIG_INIT(&wiConfig, LpAttAcceptWorkItem);
+        WDF_OBJECT_ATTRIBUTES_INIT(&wiAttrs);
+        wiAttrs.ParentObject = device;
+        status = WdfWorkItemCreate(&wiConfig, &wiAttrs, &ctx->AttAcceptWorkItem);
+        if (!NT_SUCCESS(status)) {
+            KdPrint(("LibrePodsAAP: WdfWorkItemCreate failed 0x%08X\n", status));
+            return status;
+        }
     }
 
     // Single sequential IOCTL queue (connect/send/receive are serialized).
