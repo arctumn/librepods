@@ -5,6 +5,7 @@
 //! boost as little-endian f32. We leave the audiogram EQ bands untouched for now and
 //! drive only the overall amplification / balance / conversation boost.
 
+use crate::aap;
 use crate::driver::Driver;
 use std::{thread, time::Duration};
 
@@ -58,9 +59,13 @@ pub fn apply(
         return Ok("hearing aid OFF".into());
     }
 
-    // 1) Wake the buds' hearing-aid ATT server (it is dormant until enabled).
+    // 1) Wake the buds' hearing-aid ATT server (it is dormant until enabled), and
+    // switch to Transparency (mode 3) so ambient sound passes through to be
+    // amplified — in ANC/Off there is nothing to amplify.
     let _ = drv.send(&HA_ON_2C);
-    thread::sleep(Duration::from_millis(400));
+    thread::sleep(Duration::from_millis(300));
+    let _ = drv.send(&aap::anc_command(3));
+    thread::sleep(Duration::from_millis(200));
     let _ = drv.send(&HA_ON_33);
     thread::sleep(Duration::from_millis(900));
 
@@ -87,6 +92,15 @@ pub fn apply(
     let cb = if conv_boost { 1.0f32 } else { 0.0f32 };
     if val.len() > OFF_MODE {
         val[OFF_MODE] = 0x64;
+    }
+    // Flat audiogram: a broadband gain across all 8 EQ bands per ear. A zero
+    // audiogram leaves the amplification nothing to scale (you'd hear nothing), so
+    // we synthesize a flat boost from the slider. BAND_GAIN is a first guess at the
+    // units (dB-ish) — tune against hardware.
+    const BAND_GAIN: f32 = 30.0;
+    for i in 0..8usize {
+        put_f32(&mut val, 4 + i * 4, left_amp * BAND_GAIN);
+        put_f32(&mut val, 52 + i * 4, right_amp * BAND_GAIN);
     }
     put_f32(&mut val, OFF_LEFT_AMP, left_amp);
     put_f32(&mut val, OFF_LEFT_TONE, 0.0);
