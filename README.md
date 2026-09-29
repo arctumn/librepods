@@ -9,6 +9,8 @@
   <img alt="LibrePods" src="./imgs/banner.png" />
 </picture>
 
+<p align="center"><b>Also on Windows</b> — a native port (WinUI 3 app + drivers): see <a href="windows/README.md">windows/README.md</a></p>
+
 <div align="center" style="margin: 20px 0px;">
 <a href="https://github.com/kavishdevar/librepods/releases/latest">
   <img src="https://img.shields.io/github/downloads/kavishdevar/librepods/total?label=GitHub%20Downloads" />
@@ -18,6 +20,9 @@
 </a>
 <a href="https://github.com/kavishdevar/librepods/actions/workflows/ci-linux-rust.yml">
   <img src="https://github.com/kavishdevar/librepods/actions/workflows/ci-linux-rust.yml/badge.svg" />
+</a>
+<a href="https://github.com/kavishdevar/librepods/actions/workflows/ci-windows.yml">
+  <img src="https://github.com/kavishdevar/librepods/actions/workflows/ci-windows.yml/badge.svg" />
 </a>
 <a href="https://github.com/kavishdevar/librepods/issues">
   <img src="https://img.shields.io/github/issues/kavishdevar/librepods" />  
@@ -33,25 +38,25 @@ LibrePods allows you to use AirPods features that are exclusive to Apple devices
 
 # Feature availability
 
-| Feature                                                     | Linux | Android |
-| ----------------------------------------------------------- | ----- | ------- |
-| Changing Listening Mode                                     | ✅     | ✅       |
-| Ear detection                                               | ✅     | ✅       |
-| Battery status                                              | ✅     | ✅       |
-| Renaming AirPods <details><summary>Note for Android</summary>On Android, you need to re-pair your AirPods after renaming them because Android might not use the latest name.</details>                                            | ✅     | ✅       |
-| Loud Sound Reduction                                        | 🔴     | ⚪       |
-| Head Gestures                                               | ⛔     | ✅       |
-| Conversational Awareness                                    | ✅     | ✅       |
-| Automatically connect to AirPods                            | ✅     | ✅       |
-| Hearing Aid                                                 | 🔴     | ⚪       |
-| Transparency Mode customization                             | 🔴     | ⚪       |
-| Multi-device connectivity (Bluetooth Multipoint; 2 devices only) | ⚪     | ⚪       |
-| <details><summary>Other accessibility configs (click to expand)</summary><ul><li>Press speed</li><li>Press and Hold duration</li><li>Noise Cancellation with single AirPod</li><li>Volume control on swipe</li><li>Volume swipe speed</li></ul></details>       | 🔴     | ✅       |
-| <details><summary>Other general configs</summary><ul><li>Press and Hold to cycle between listening modes/invoke digital assistant (invoking digital assistant needs a recent firmware)</li><li>Configure call controls</li><li>Personalized volume</li><li>Loud Sound Reduction (needs <a href="#vendorid-spoofing">VendorID spoofing</a>)</li><li>Microphone side</li><li>Pause media when falling asleep (needs a recent firmware)</li><li>Enable <code>Off listening mode</code> to switch to <code>Off</code></li></ul></details>                   | 🔴     | ✅       |
-| [Head-tracked Spatial Audio](#spatial-audio)                | ❓     | ❓       |
-| [Heart Rate Monitoring](#heart-rate-monitoring)             | ⛔     | 🔴       |
-| [Find My](#find-my)                                         | ❓     | ❓       |
-| [High quality two-way audio](#high-quality-two-way-audio)   | 🔴     | 🔴       |
+| Feature                                                     | Linux | Android | Windows |
+| ----------------------------------------------------------- | ----- | ------- | ------- |
+| Changing Listening Mode                                     | ✅     | ✅       | ✅       |
+| Ear detection                                               | ✅     | ✅       | ✅       |
+| Battery status                                              | ✅     | ✅       | ✅       |
+| Renaming AirPods <details><summary>Note for Android</summary>On Android, you need to re-pair your AirPods after renaming them because Android might not use the latest name.</details>                                            | ✅     | ✅       | ✅       |
+| Loud Sound Reduction                                        | 🔴     | ⚪       | 🔴       |
+| Head Gestures                                               | ⛔     | ✅       | 🔴       |
+| Conversational Awareness                                    | ✅     | ✅       | ✅       |
+| Automatically connect to AirPods                            | ✅     | ✅       | ✅       |
+| Hearing Aid                                                 | 🔴     | ⚪       | 🧪       |
+| Transparency Mode customization                             | 🔴     | ⚪       | 🔴       |
+| Multi-device connectivity (Bluetooth Multipoint; 2 devices only) | ⚪     | ⚪       | ⚪       |
+| <details><summary>Other accessibility configs (click to expand)</summary><ul><li>Press speed</li><li>Press and Hold duration</li><li>Noise Cancellation with single AirPod</li><li>Volume control on swipe</li><li>Volume swipe speed</li></ul></details>       | 🔴     | ✅       | 🔴       |
+| <details><summary>Other general configs</summary><ul><li>Press and Hold to cycle between listening modes/invoke digital assistant (invoking digital assistant needs a recent firmware)</li><li>Configure call controls</li><li>Personalized volume</li><li>Loud Sound Reduction (needs <a href="#vendorid-spoofing">VendorID spoofing</a>)</li><li>Microphone side</li><li>Pause media when falling asleep (needs a recent firmware)</li><li>Enable <code>Off listening mode</code> to switch to <code>Off</code></li></ul></details>                   | 🔴     | ✅       | 🔴       |
+| [Head-tracked Spatial Audio](#spatial-audio)                | ❓     | ❓       | ❓       |
+| [Heart Rate Monitoring](#heart-rate-monitoring-airpods-pro-3-and-later) | ⛔     | 🔴       | ✅       |
+| [Find My](#find-my)                                         | ❓     | ❓       | ❓       |
+| [High quality two-way audio](#high-quality-two-way-audio)   | 🔴     | 🔴       | ✅       |
 
 | Symbol | Meaning                                                             |
 | ------ | ------------------------------------------------------------------- |
@@ -60,6 +65,7 @@ LibrePods allows you to use AirPods features that are exclusive to Apple devices
 | 🔴     | Not implemented yet; planned                                        |
 | ⛔     | Will not be implemented                                             |
 | ❓     | Unknown                                                             |
+| 🧪     | Experimental (behind a setting)                                     |
 
 ## Find My
 
@@ -79,21 +85,26 @@ Spatializing stereo sound is beyond this project's scope and will never be avail
 ## Heart Rate Monitoring (AirPods Pro 3 and later)
 This is being worked upon, check the #⁠reverse-engineering channel on the LibrePods Discord server for more information. If it is ever implemented, it will most likely need root on Android.
 
+**Windows:** works on AirPods Pro 3 — live BPM, a graph and a history of past sessions. The key was the **L2CAP MTU of the AACP channel**: the AirPods only publish the heart-rate sensor service when its descriptor (~920 bytes) fits in the channel's MTU, so a host that opens the channel with the 672-byte default never gets readings. Requesting a 1691-byte MTU (as Android's Bluetooth stack does) fixes it. Details: [windows/docs/heart-rate.md](windows/docs/heart-rate.md).
+
 ## High quality two-way audio
 On iOS/iPadOS, you can continue using A2DP while AirPods send the audio stream from its microphone over AACP. 
 
 Since this needs deeper integration with audio on Android, it will most likely need root.
 
+**Windows:** available — the AirPods' microphone stream is decoded (AAC-ELD) and exposed as a regular Windows microphone through LibrePods' virtual audio driver, so any app (Teams, Discord, OBS, …) can use it. See [windows/README.md](windows/README.md).
+
 # Installation
 
 - [**Android**](/android/README.md)
 - [**Linux**](/linux/README.md)
+- [**Windows**](/windows/README.md) — needs Windows **Test Mode** (the drivers are test-signed)
 
 # VendorID Spoofing
 
 Turns out, if you change the VendorID in DID Profile to that of Apple, you get access to several special features!
 
-You can do this on Linux by editing the DeviceID in `/etc/bluetooth/main.conf`. Add this line to the config file `DeviceID = bluetooth:004C:0000:0000`. For android you can enable the `act as Apple device` setting in the app's settings (shown only when Xposed is available and LibrePods module is enabled).
+You can do this on Linux by editing the DeviceID in `/etc/bluetooth/main.conf`. Add this line to the config file `DeviceID = bluetooth:004C:0000:0000`. For android you can enable the `act as Apple device` setting in the app's settings (shown only when Xposed is available and LibrePods module is enabled). On Windows, set the DWORDs `DIDVendorIDSource = 1` and `DIDVendorID = 0x004C` under `HKLM\SYSTEM\CurrentControlSet\Services\BTHPORT\Parameters` and reboot.
 
 ## Multi-device Connectivity
 
@@ -220,7 +231,7 @@ A huge thank you to everyone supporting the project!
 # Alternates for other platforms:
 - CAPod - A companion app for AirPods on Android. ([play store](https://play.google.com/store/apps/details?id=eu.darken.capod) | [source code](https://github.com/d4rken-org/capod)). Use this if you're using Android version 16 QPR3 or below and are not rooted.
 - MagicPods for Steam Deck ([website](https://magicpods.app/steamdeck/))
-- MagicPods - if you're looking for "LibrePods for Windows"  ([ms store](https://apps.microsoft.com/store/detail/9P6SKKFKSHKM) [installer](https://magicpods.app/installer/MagicPods.appinstaller) | [website](https://magicpods.app/))
+- MagicPods - a paid AirPods app for Windows, if you'd rather not use Test Mode  ([ms store](https://apps.microsoft.com/store/detail/9P6SKKFKSHKM) [installer](https://magicpods.app/installer/MagicPods.appinstaller) | [website](https://magicpods.app/))
 
 # Star History
 
