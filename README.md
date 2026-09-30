@@ -1,3 +1,9 @@
+> [!IMPORTANT]
+> The Windows port that used to live in this fork has moved to its own project,
+> **NTPods**: https://github.com/arctumn/ntpods. Get Windows builds and report
+> Windows issues there. This fork is no longer updated. For Android and Linux, use
+> [LibrePods](https://github.com/kavishdevar/librepods).
+
 > [!WARNING]
 > librepods.org is not an official website of the LibrePods project. It inaccurately claims to be the official website of the project by claiming copyrights and using the LibrePods logo in the footer. And at the same time, they say that the project is not affiliated with the LibrePods project or its developers.
 > 
